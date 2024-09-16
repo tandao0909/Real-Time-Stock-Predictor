@@ -5,11 +5,11 @@ import warnings
 import os
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-import pdb
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as dates
 import pandas_datareader.data as web
 
 from sklearn.linear_model import LinearRegression, Lasso, ElasticNet
@@ -51,17 +51,17 @@ def extract_data(
         ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     begin_date = datetime.now() - relativedelta(years=YEARS_TO_FORECAST, days=-1)
     if os.path.isdir(f"{predict_ticker}/data"):
-        currency_data = pd.read_csv(f"./{predict_ticker}/data/currency_data.csv", index_col="DATE")
-        index_data = pd.read_csv(f"./{predict_ticker}/data/index_data.csv", index_col="DATE")
-        stock_data = pd.read_csv(f"./{predict_ticker}/data/stock_data.csv", index_col="Date")
+        currency_data = pd.read_csv(f"./{predict_ticker}/data/{predict_ticker}_currency_data.csv", index_col="DATE")
+        index_data = pd.read_csv(f"./{predict_ticker}/data/{predict_ticker}_index_data.csv", index_col="DATE")
+        stock_data = pd.read_csv(f"./{predict_ticker}/data/{predict_ticker}_stock_data.csv", index_col="Date")
     else:
         os.makedirs(f"{predict_ticker}/data")
         currency_data:pd.DataFrame = web.DataReader(currency_tickers, "fred", start=begin_date, end=datetime.now())
         index_data:pd.DataFrame = web.DataReader(index_tickers, "fred", start=begin_date, end=datetime.now())
         stock_data:pd.DataFrame = historical_stocks_data(stock_tickers)
-        currency_data.to_csv(f"./{predict_ticker}/data/currency_data.csv")
-        index_data.to_csv(f"./{predict_ticker}/data/index_data.csv")
-        stock_data.to_csv(f"./{predict_ticker}/data/stock_data.csv")
+        currency_data.to_csv(f"./{predict_ticker}/data/{predict_ticker}_currency_data.csv")
+        index_data.to_csv(f"./{predict_ticker}/data/{predict_ticker}_index_data.csv")
+        stock_data.to_csv(f"./{predict_ticker}/data/{predict_ticker}_stock_data.csv")
     return stock_data, currency_data, index_data
 
 def process_stock_data(stock_tickers:list[str], stock_data:pd.DataFrame, predict_ticker:str) -> pd.DataFrame:
@@ -365,6 +365,8 @@ def plot_test_fine_tuned_ARIMA(X:pd.DataFrame, y:pd.Series, predict_ticker:str) 
 
     plt.plot(np.exp(y_valid).cumprod(), label="actual")
     plt.plot(np.exp(predicted_tuned).cumprod(), label="predict")
+    plt.gca().xaxis.set_major_locator(dates.MonthLocator(interval=1))  # Change interval as needed
+    plt.gca().xaxis.set_major_formatter(dates.DateFormatter('%Y-%m'))
     plt.legend()
 
     plt.savefig(f"{predict_ticker}/{predict_ticker}_backtest.png")
@@ -383,6 +385,7 @@ if __name__ == "__main__":
     index_tickers = ["SP500", "DJIA", "NASDAQ100"]
 
     for predict_ticker in stock_tickers:
+        print(f"Processing {predict_ticker}")
         stock_data, currency_data, index_data = extract_data(stock_tickers, currency_tickers, index_tickers, predict_ticker)
 
         X, y = process_data(stock_data, index_data, currency_data, stock_tickers, predict_ticker)
@@ -397,4 +400,3 @@ if __name__ == "__main__":
         plot_test_fine_tuned_ARIMA(X, y, predict_ticker)
 
         save_model(fine_tune_ARIMA(X, y, predict_ticker), predict_ticker)
-
